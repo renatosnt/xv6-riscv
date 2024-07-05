@@ -89,3 +89,36 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+int
+sys_settickets(void)
+{
+    int num_tickets;
+    argint(0, &num_tickets);
+    if (num_tickets < 1) {
+        return -1;
+    }
+    myproc()->tickets = num_tickets;
+    return 0;
+}
+
+int
+sys_getpinfo(void)
+{
+   struct pstat *p;
+   argaddr(0, (uint64*)&p);
+
+  for (p = proc)
+}
+
+for(p = proc; p < &proc[NPROC]; p++){
+    if(p->state == UNUSED)
+      continue;
+    if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
+      state = states[p->state];
+    else
+      state = "???";
+    printf("%d %s %s", p->pid, state, p->name);
+    printf("\n");
+  }

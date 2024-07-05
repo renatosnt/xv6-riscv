@@ -146,6 +146,8 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  p->tickets = 1;
+  p->ticks = 0;
   return p;
 }
 
@@ -321,6 +323,8 @@ fork(void)
   acquire(&np->lock);
   np->state = RUNNABLE;
   release(&np->lock);
+
+  np->tickets = p->tickets;
 
   return pid;
 }
@@ -680,4 +684,10 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+
+int
+rand(void) {
+  //implement rand
 }
