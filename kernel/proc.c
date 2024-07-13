@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "pstat.h"
 
 struct cpu cpus[NCPU];
 
@@ -124,7 +125,8 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
-
+  p->tickets = 1;
+  p->ticks = 0;
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
@@ -146,8 +148,7 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
-  p->tickets = 1;
-  p->ticks = 0;
+
   return p;
 }
 
@@ -250,7 +251,7 @@ userinit(void)
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
-
+  p->tickets = 1;
   p->state = RUNNABLE;
 
   release(&p->lock);
@@ -297,7 +298,7 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
-
+  np->tickets = p->tickets;
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
@@ -323,9 +324,6 @@ fork(void)
   acquire(&np->lock);
   np->state = RUNNABLE;
   release(&np->lock);
-
-  np->tickets = p->tickets;
-
   return pid;
 }
 
@@ -438,6 +436,27 @@ wait(uint64 addr)
   }
 }
 
+unsigned long int seed = 1;
+
+void
+set_seed(unsigned long int new_seed)
+{
+  seed = new_seed;
+}
+
+int
+rand(void) {
+  seed = seed * 1103515245 + 12345;
+  return (unsigned int)(seed/65536) % 32768;
+}
+
+int get_winner(int n)
+{
+  return rand() % (n + 1);
+}
+
+
+
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
@@ -456,22 +475,37 @@ scheduler(void)
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
+    int total_ticks = 0;
+    int total_tickets = 0;
+
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
+      total_ticks += p->ticks;
       if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
+        total_tickets += p->tickets;      
       }
       release(&p->lock);
     }
+
+    set_seed(ticks);
+    int winner = get_winner(total_tickets);
+
+    for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if(p->state == RUNNABLE) {
+
+        if(p->tickets >= winner) {
+          p->state = RUNNING;
+          p->ticks++;
+          c->proc = p;
+          swtch(&c->context, &p->context);
+          c->proc = 0;
+        }
+        winner -= p->tickets;
+      }
+      release(&p->lock);
+    }
+
   }
 }
 
@@ -688,6 +722,28 @@ procdump(void)
 
 
 int
-rand(void) {
-  //implement rand
+settickets(int num_tickets)
+{
+  struct proc *p = myproc();
+  acquire(&p->lock);
+  p->tickets = num_tickets;
+  release(&p->lock);
+  return 0;
+}
+
+int
+getpinfo(uint64 ps)
+{
+  struct pstat stat;
+  for (int i = 0; i < NPROC; i++) {
+    stat.tickets[i] = (&proc[i])->tickets;
+    stat.pid[i] = (&proc[i])->pid;
+    stat.inuse[i] = (&proc[i])->state == UNUSED ? 0 : 1;
+    stat.ticks[i] = (&proc[i])->ticks;
+  }
+
+  if (copyout(myproc()->pagetable, ps, (char *)&stat, sizeof(stat)) < 0) {
+    return -1;
+  }
+  return 0;
 }
