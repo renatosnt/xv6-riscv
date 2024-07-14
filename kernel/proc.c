@@ -486,14 +486,16 @@ scheduler(void)
       }
       release(&p->lock);
     }
+    
+    if (total_tickets < 1) continue;
 
-    set_seed(ticks);
+
+    set_seed(ticks + total_tickets);
     int winner = get_winner(total_tickets);
 
-    for(p = proc; p < &proc[NPROC]; p++) {
+    for(p = proc; p < &proc[NPROC] && winner > 0; p++) {
       acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-
+      if(p->state == RUNNABLE) {        
         if(p->tickets >= winner) {
           p->state = RUNNING;
           p->ticks++;
