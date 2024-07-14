@@ -3,58 +3,90 @@
 #include "user/user.h"
 #include "kernel/pstat.h"
 
-int main(int argc, char *argv[]){
-    settickets(29);
+#define NCHILDS 3
 
-    if (argc != 2){
-        fprintf(2, "Usage: %s <linhas>\n", argv[0]);
-        exit(1);
-    }
+int main(int argc, char *argv[])
+{
+	fprintf(1, "calling getpinfo...\n");
+	settickets(29);
 
-    const int linhas = atoi(argv[1]);
-    if (linhas <= 0) {
-        fprintf(2, "Erro: <linhas> deve ser um número positivo\n");
-        exit(1);
-    }
+	if (argc != 2)
+	{
+		fprintf(2, "USAGE: %s <rows_csv_file>\n", argv[0]);
+		exit(-1);
+	}
 
-    int pids[3];
+	const int NROWS = atoi(argv[1]);
 
-    for (int i = 0; i < 3; i++){
-        switch (pids[i] = fork())
-        {
-        case -1:
-            fprintf(2, "Erro ao criar processo filho\n");
-            exit(1);
-            break;
-        case 0:
-            settickets(10 + i * 10);
-            for (int j = 0; j < 100000000; j++); // Simula carga de trabalho
-            exit(0);
-            break;
-        default:
-            break;
-        }
-    }
+	int pids[NCHILDS];
 
-    for (int j = 0; j < linhas; j++) {
-        fprintf(1, "-------------------------\n");
-        struct pstat p;
-        int ret = getpinfo(&p);
-        if (ret < 0) {
-            fprintf(2, "Erro ao chamar getpinfo\n");
-            exit(1);
-        }
-        for (int i = 0; i < NPROC; i++) {
-            if (p.inuse[i]) {
-                fprintf(1, "pid: %d, tickets: %d, ticks: %d\n", p.pid[i], p.tickets[i], p.ticks[i]);
-            }
-        }
-        sleep(1); // Usar sleep(1) para pausar por 1 segundo
-    }
+	for (int i = 0; i < NCHILDS; i++)
+	{
+		switch (pids[i] = fork())
+		{
+		case -1: /* fork() fallÃ³ */
+			fprintf(1, "perror(fork");
+			exit(-1);
+			break;
+		case 0: /* Ejecucion del proceso hijo tras fork() con Ã©xito */
+			settickets(10 * (i + 1));
+			int b = 0;
+			for (int i = 0; i < 9999999990; i++)
+			{
+				b = 40 * 40 + i;
+			}
+			fprintf(1, "%d\n", b);
+			exit(0);
+			break;
+		default:
+			break;
+		}
+	}
 
-    for (int i = 0; i < 3; i++) {
-        wait(0); // Aguarda a conclusão dos processos filhos
-    }
-    
-    exit(0);
+	int fd = open("salida.csv", 0x200 | 0x001); // O_CREATE | O_WRONLY
+	if (fd < 0)
+	{
+		fprintf(2, "Cannot open file!.");
+		exit(-1);
+	}
+
+	fprintf(fd, "Process A;Process B;Process C\n");
+	
+	for (int j = 0; j < NROWS; j++)
+	{
+		fprintf(1, "\n");
+		struct pstat ps;
+		int ret = getpinfo(&ps);
+		if (ret < 0)
+		{
+			fprintf(2, "getpinfo error\n");
+			exit(1);
+		}
+        fprintf(1, "PID\tTICKETS\tTICKS\n");
+		for (int i = 0; i < NPROC; i++)
+		{
+			if (ps.inuse[i])
+			{
+				char endl;
+				if (ps.tickets[i] == 30)
+					endl = '\n';
+				else
+					endl = ';';
+				if (ps.tickets[i] % 10 == 0)
+				{
+					fprintf(1, "%d\t%d\t%d\n", ps.pid[i], ps.tickets[i], ps.ticks[i]);
+					fprintf(fd, "%d%c", ps.ticks[i], endl);
+				}
+			}
+		}
+
+		sleep(100);		
+	}
+
+	for (int i = 0; i < NCHILDS; i++)
+		kill(pids[i]);
+
+	fprintf(1, "Returning from getinfo.c with status 0!\n");
+
+	exit(0);
 }
