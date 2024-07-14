@@ -139,7 +139,7 @@ PID	TICKETS	TICKS
 Além disso, o código settickets.c testa a função settickets, informando o valor de retorno dela, se é 0 ou -1.
 
 6. Discuss the graph described at the end of the assignment description
-   ![Gráfico]('./graph.png')
-
+    ![Gráfico](./graph.png)
+   
 O gráfico indica uma maior proporção de ticks para o processo com 30 tickets, seguido pelo com 20 tickets e por fim o de 10 tickets.
 Esse comportamento indica que a proporção de ticks está proporcional ao número de tickets e que o lottery scheduler está funcionando corretamente.
